@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 LIDAR_RESOLUTION = 0.8
-LIDAR_MAX_DIST = 12000
+LIDAR_MAX_DIST = 5
 serial_protocol_translation = {
     "sa" : "start angle",
     "nbv" : "number of values",
@@ -45,9 +45,10 @@ class LidarCloudPoint:
         self.start_angle = None
         self.nb_value = None
         self.number_of_points = int(360 / LIDAR_RESOLUTION)
-        self.points_distances = np.zeros(self.number_of_points) # Number of value of one rotation
-        self.points_angles = np.zeros(self.number_of_points) # Number of value of one rotation
-        self.nb_value = None
+        print(f'number of points : {self.number_of_points}')
+        self.points_distances = np.zeros(self.number_of_points, dtype=np.float32) # Number of value of one rotation
+        self.points_angles = np.zeros(self.number_of_points, dtype=np.float32) # Number of value of one rotation
+        self.nb_value = 12
         self.end_angle = None
         
         # self.delta_angle = None
@@ -66,6 +67,12 @@ class LidarCloudPoint:
         self.current_index = 0
         return self
     
+    def get_points_angle(self) -> np.ndarray:
+        return self.points_angles
+
+    def get_points_distances(self) -> np.ndarray:
+        return self.points_distances
+    
     def __next__(self):
         if self.current_index < self.number_of_points:
             r = self.points_distances[self.current_index]
@@ -74,13 +81,21 @@ class LidarCloudPoint:
             return (r, theta)
         raise StopIteration
 
-
+    def check_frame_integrity(self, frame: list)-> bool:
+        if frame[0].split(':')[0] != "sa":
+            return False
+        if frame[-1].split(':')[0] != 'ea':
+            return False
+        if len(frame) - 3 != self.nb_value:
+            return False
+        return True
+        
     def ingest_frame(self, frame: bytes):
         frame = frame[:-1] # remove the '\n' at the end of frame
         data_array = frame.decode(encoding='ascii').split(' ')
         distances = []
         print(data_array)
-        if data_array[0].split(':')[0] == "sa": #checking if we have a complete frame
+        if self.check_frame_integrity(data_array):
             for data in data_array:
                 try:
                     key, value = data.split(':')
@@ -88,30 +103,46 @@ class LidarCloudPoint:
                     print("Frame not full")
                     return
 
-                value = int(value)
+                # value = int(value)
+                try:
+                    value = int(value)
+                except ValueError:
+                    continue
+
                 if key == 'sa': # start angle
-                    self.start_angle = value
+                    self.start_angle = float(value/100.0)
                 elif key == 'nbv': # number of values
                     self.nb_value = value
                 elif self.nb_value != None and key in [str(i) for i in range(0, self.nb_value)]: # distance
-                    distances.append(value)
+                    print(f'distance : {value} | distance divided {float(value/1000.0)}')
+                    distances.append(float(value/1000.0))
                 elif key == 'ea': # end angle
-                    self.end_angle = value
+                    self.end_angle = float(value/100.0)
 
             resolution = LIDAR_RESOLUTION
 
             for i in range(self.nb_value):
                 point_angle = self.start_angle + resolution*i
-                if point_angle > 36000:
-                    point_angle -= 36000
+                if point_angle > 360:
+                    point_angle -= 360
                 
-                index = int(np.round(point_angle / (resolution * 100)))
-                if index>= self.nb_value:
-                    index = self.nb_value-1
+                index = int(np.round(point_angle / (resolution)))
+                if index >= self.number_of_points:
+                    index = self.number_of_points-1
 
-                self.points_distances[index] = distances[i]
-                self.points_angles[index] = point_angle
-
+                # print(f'point angle {distances[i]} | index : {index}')
+                try:
+                    
+                    self.points_distances[index] = distances[i]
+                    self.points_angles[index] = point_angle
+                except:
+                    print(f'data array: {data_array}')
+                    print(f'index: {index}')
+                    
+                    print(f'distance len: {len(distances)}')
+                    
+                    print(f'point angle: {point_angle}')
+                    print(f'distance: {distances[i]}')
 class Window:
 
     def __init__(self, x_size : int = 400, y_size: int = 400):
@@ -121,6 +152,7 @@ class Window:
         self.y_size = y_size
         self.window = pygame.display.set_mode((self.x_size,self.y_size))
         # draw robot/lidar point
+        self.cloud_point = None
         pygame.draw.circle(self.window, (255,255,255),(self.x_size/2,self.y_size/2), 10)
         self.update()
 
@@ -129,23 +161,36 @@ class Window:
     
     def update_from_cloud_point(self, cloud_point : LidarCloudPoint):
 
-        for r, theta in cloud_point:
-            x, y = self.shift_and_transform_coords(r=r,theta=theta)
-            pygame.draw.circle(self.window, (255,255,255), (x,y), 3)
+        for index in range(len(cloud_point)):
+            cyl_coords = cloud_point[index]
+            print(cyl_coords)
+            if self.cloud_point == None:
+                self.cloud_point = [(0,0)] * len(cloud_point)
+            else :
+                pygame.draw.circle(self.window, (0,0,0), self.cloud_point[index], 3)
+            coords = self.shift_and_transform_coords(cyl_coords=cyl_coords)
+            # print(f'coords: {coords}')
+            self.cloud_point[index] = coords
+            # print(f' x: {coords[0]} y: {coords[1]}')
+            # if (coords[0] > 5 or coords[0] < -5) and (coords[1] > 5 or coords[1] < -5):
+            pygame.draw.circle(self.window, (255,255,255), coords, 3)
         self.update()
 
-    def shift_and_transform_coords(self, r, theta):
-        x, y = self.cylindrical_coords_to_cartesian(r, theta)
-
+    def shift_and_transform_coords(self, cyl_coords: tuple):
+        print(f'r cyl :{cyl_coords[0]}')
+        x, y = self.cylindrical_coords_to_cartesian(cyl_coords)
+        # print(f'x: {x}')
         resized_x = (x*self.x_size)/LIDAR_MAX_DIST
         shifted_x = resized_x + (self.x_size/2)
 
         resized_y = (y*self.y_size)/LIDAR_MAX_DIST
         shifted_y = resized_y + (self.y_size/2)
+        # print(f'shifted_x : {shifted_x}')
+        return(int(shifted_x),int(shifted_y))
 
-        return(shifted_x,shifted_y)
-
-    def cylindrical_coords_to_cartesian(self, theta, r):
+    def cylindrical_coords_to_cartesian(self, cyl_coords : tuple):
+        theta = cyl_coords[1]
+        r = cyl_coords[0]
         return (r*math.cos(theta), r*math.sin(theta))
 
 lidar_value = ''
@@ -163,7 +208,9 @@ while True:
     # next_frame = ser.readlines(1)#.decode('ascii')#.split('\r\n')
     next_frame = ser.read_until(b"\n")#.decode('ascii')#.split('\r\n')
     # print(next_frame)
+    
     cloud_point.ingest_frame(next_frame)
+    # print(cloud_point.get_points_distances())
     window.update_from_cloud_point(cloud_point=cloud_point)
 
     # print(f'start_angle {cloud_point.start_angle}')
