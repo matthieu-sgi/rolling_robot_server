@@ -189,7 +189,7 @@ class Window:
         return(int(shifted_x),int(shifted_y))
 
     def cylindrical_coords_to_cartesian(self, cyl_coords : tuple):
-        theta = cyl_coords[1]
+        theta = math.radians(cyl_coords[1])
         r = cyl_coords[0]
         return (r*math.cos(theta), r*math.sin(theta))
 
