@@ -55,7 +55,7 @@ class SerialClient:
     
     def _sending_thread(self) -> None:
         while self.run:
-            data : str = self.sending_queue.get(block=True, timeout=1)
+            data : str = self.sending_queue.get(block=True)
             self.serial_comm.write(data.encode(encoding='ascii'))
     
     def stop(self) -> None:

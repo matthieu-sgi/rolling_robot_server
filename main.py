@@ -1,9 +1,10 @@
 import pygame
-import serial
 import os
 import math
 import numpy as np
 import time
+
+from serial_client import SerialClient
 
 LIDAR_RESOLUTION = 0.8
 LIDAR_MAX_DIST = 5
@@ -15,19 +16,6 @@ serial_protocol_translation = {
 }
 FPS = 30
 
-files = os.listdir('/dev')
-port = ""
-for devices in files:
-    if devices.startswith('ttyACM'):
-        port = f'/dev/{devices}'
-print(port)
-ser = serial.Serial(
-    port=port,
-    baudrate=230400,
-    bytesize=8,
-    parity=serial.PARITY_NONE,
-    stopbits=1
-)
 
 class LidarPoint:
     def __init__(self, angle:int, distance : int):
@@ -89,7 +77,7 @@ class LidarCloudPoint:
             return False
         
         for counter, data in enumerate(frame):
-            print(f'data : {data} | counter : {counter}')
+            #print(f'data : {data} | counter : {counter}')
             try:
                 key, value = data.split(':')
             except ValueError:
@@ -119,7 +107,7 @@ class LidarCloudPoint:
                     # print(f"counter : {counter - 2} | key : {key}")
                     return False
                 else:
-                    print(f'appending value : {value}')
+                    #print(f'appending value : {value}')
                     self.pre_formatted_distances.append(float(value/1000.0))
                 
             
@@ -133,32 +121,12 @@ class LidarCloudPoint:
         return True
         
     def ingest_frame(self, frame: bytes):
+        if frame == None:
+            return
         frame = frame[:-1] # remove the '\n' at the end of frame
         data_array = frame.decode(encoding='ascii').split(' ')
         self.pre_formatted_distances = []
-        print(data_array)
         if self.check_frame_integrity_and_format(data_array):
-            # for data in data_array:
-            #     try:
-            #         key, value = data.split(':')
-            #     except ValueError:
-            #         print("Frame not full")
-            #         return
-
-            #     # value = int(value)
-            #     try:
-            #         value = int(value)
-            #     except ValueError:
-            #         continue
-
-            #     if key == 'sa': # start angle
-            #         self.start_angle = float(value/100.0)
-            #     elif self.nb_value != None and key in [str(i) for i in range(0, self.nb_value)]: # distance
-            #         print(f'distance : {value} | distance divided {float(value/1000.0)}')
-            #         self.pre_formatted_distances.append(float(value/1000.0))
-            #     elif key == 'ea': # end angle
-            #         self.end_angle = float(value/100.0)
-
             resolution = LIDAR_RESOLUTION
 
             for i in range(self.nb_value):
@@ -241,50 +209,46 @@ max_lidar_value = 0
 min_lidar_value = 1000
 
 window = Window(1000,1000)
-# window.window.fill((0,0,0))
-# pygame.draw.rect(window.window,(255,255,255),(200,150,100,50))
-# window.update()
 cloud_point = LidarCloudPoint()
 
-while True:
-    # next_byte = ser.read(1)#.decode('ascii')#.split('\r\n')
-    # next_frame = ser.readlines(1)#.decode('ascii')#.split('\r\n')
-    next_frame = ser.read_until(b"\n")#.decode('ascii')#.split('\r\n')
-    # print(next_frame)
-    
-    cloud_point.ingest_frame(next_frame)
-    # print(cloud_point.get_points_distances())
-    window.update_from_cloud_point(cloud_point=cloud_point)
+serial_client = SerialClient()
 
-    # print(f'start_angle {cloud_point.start_angle}')
-    # print(f'end_angle {cloud_point.end_angle}')
-    # print(f'points {cloud_point.points}')
-    # print(f'nb value {cloud_point.nb_value}')
-    # if next_byte == b'2c':
-        # break
-    # if next_byte != '\n' and next_byte != '\r':
-    #     lidar_value += next_byte
-    # else:
-    #     lidar_value = ''
-    # if lidar_value != '':
-    #     print(lidar_value)
-    # break
-    # display.fill((255,255,255))
-    # # iterate over the list of Event objects
-    # # that was returned by pygame.event.get() method.
-    # for event in pygame.event.get():
- 
-    #     # if event object type is QUIT
-    #     # then quitting the pygame
-    #     # and program both.
-    #     if event.type == pygame.QUIT:
- 
-    #         # deactivates the pygame library
-    #         pygame.quit()
- 
-    #         # quit the program.
-    #         quit()
- 
-    #     # Draws the surface object to the screen.
-    #     pygame.display.update()
-    ...
+KEY_TO_MSG = {
+    pygame.K_UP : "up",
+    pygame.K_DOWN : "down",
+    pygame.K_RIGHT : "right",
+    pygame.K_LEFT : "left",
+    pygame.K_SPACE : "toggle"
+}
+
+
+while True:
+    try:
+        next_frame = serial_client.get_message()
+        
+        cloud_point.ingest_frame(next_frame)
+        # print(cloud_point.get_points_distances())
+        window.update_from_cloud_point(cloud_point=cloud_point)
+
+        for event in pygame.event.get():
+    
+            # if event object type is QUIT
+            # then quitting the pygame
+            # and program both.
+            if event.type == pygame.QUIT:
+    
+                # deactivates the pygame library
+                pygame.quit()
+    
+                # quit the program.
+                quit()
+                serial_client.stop()
+            if event.type == pygame.KEYDOWN:
+                if event.key in KEY_TO_MSG.keys():
+                    print(f'sending key : {KEY_TO_MSG[event.key]}')
+                    serial_client.send_message(KEY_TO_MSG[event.key])
+
+    except KeyboardInterrupt:
+        pygame.quit()
+        serial_client.stop()
+        quit()
