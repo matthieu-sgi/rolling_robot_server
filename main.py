@@ -3,6 +3,7 @@ import serial
 import os
 import math
 import numpy as np
+import time
 
 LIDAR_RESOLUTION = 0.8
 LIDAR_MAX_DIST = 5
@@ -12,6 +13,7 @@ serial_protocol_translation = {
     "X" : "value index with value",
     "ea" : "end angle"
 }
+FPS = 30
 
 files = os.listdir('/dev')
 port = ""
@@ -191,6 +193,7 @@ class Window:
         # draw robot/lidar point
         self.cloud_point = None
         pygame.draw.circle(self.window, (0,0,255),(self.x_size/2,self.y_size/2), 10)
+        self.last_update = time.time()
         self.update()
 
     def update(self):
@@ -212,7 +215,9 @@ class Window:
             # if (coords[0] > 5 or coords[0] < -5) and (coords[1] > 5 or coords[1] < -5):
             pygame.draw.circle(self.window, (0,0,255),(self.x_size/2,self.y_size/2), 10)
             pygame.draw.circle(self.window, (255,255,255), coords, 3)
-        self.update()
+        if time.time() - self.last_update  > (1.0/float(FPS)):
+            self.update()
+            self.last_update = time.time()
 
     def shift_and_transform_coords(self, cyl_coords: tuple):
         # print(f'r cyl :{cyl_coords[0]}')
