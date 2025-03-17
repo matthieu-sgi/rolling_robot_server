@@ -1,4 +1,8 @@
 import numpy as np
+import queue
+#FIXME: debug purpose
+import time
+import threading
 
 class LidarPoint:
     def __init__(self, angle:int, distance : int):
@@ -23,7 +27,7 @@ class LidarCloudPoint:
     "ea" : "end angle"
     }
 
-    def __init__(self):
+    def __init__(self, receiving_queue : queue.Queue):
         self.start_angle = None
         self.nb_value = None
         self.number_of_points = int(360 / LidarCloudPoint.LIDAR_RESOLUTION)
@@ -32,7 +36,21 @@ class LidarCloudPoint:
         self.points_angles = np.zeros(self.number_of_points, dtype=np.float32) # Number of value of one rotation
         self.nb_value = 12
         self.end_angle = None
+        self.old_time = time.time()
+        self.receiving_queue = receiving_queue
         # self.delta_angle = None
+        #TODO: implement threading
+        # self.start()
+    
+    def start(self) -> None:
+        self.run = True
+        self.thread = threading.Thread(target=self._ingest_thread)
+        self.thread.start()
+
+    def _ingest_thread(self) -> None:
+        while self.run:
+            data = self.receiving_queue.get(block=True)
+            self.ingest_frame(data)
 
     def __getitem__(self, index: int) -> tuple:
         return (self.points_distances[index], self.points_angles[index])
@@ -142,3 +160,6 @@ class LidarCloudPoint:
                     
                     print(f'point angle: {point_angle}')
                     print(f'distance: {self.pre_formatted_distances[i]}')
+        # new_time = time.time()
+        # print(new_time - self.old_time)
+        # self.old_time = new_time

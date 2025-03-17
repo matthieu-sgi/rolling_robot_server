@@ -4,12 +4,12 @@ import os
 import threading
 
 class SerialClient:
-    def __init__(self, receiving_callback):
+    def __init__(self):
         self.run = False
         self.sending_queue = queue.Queue()
         self.receiving_queue = queue.Queue()
         self.serial_comm = self.open_port()
-        self.receiving_callback = receiving_callback
+        # self.receiving_callback = receiving_callback
         self.start()
 
     
@@ -48,14 +48,16 @@ class SerialClient:
             msg = None
         # print("out of here")
         return msg
-    
     def _receiving_thread(self) -> None :
-        self.counter = 0
+        # import time
+        # old_time = time.time()
         while self.run:
             data = self.serial_comm.read_until(b"\n")
-            self.counter+=1
-            # print(self.counter)
-            self.receiving_callback(data)
+            # new_time = time.time()
+            # print(new_time - old_time)
+            # old_time = new_time
+            # self.receiving_callback(data)
+            self.receiving_queue.put(data)
             
     
     def _sending_thread(self) -> None:

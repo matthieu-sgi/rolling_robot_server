@@ -4,11 +4,13 @@ from serial_client import SerialClient
 from lidar import LidarCloudPoint
 from display import Window
 
+# FIXME: time for debugging
+import time
 
-cloud_point = LidarCloudPoint()
+serial_client = SerialClient()
+cloud_point = LidarCloudPoint(receiving_queue=serial_client.receiving_queue)
 window = Window(cloud_point,1000,1000)
 
-serial_client = SerialClient(cloud_point.ingest_frame)
 # serial_client.stop()
 KEY_TO_MSG = {
     pygame.K_UP : "u",
@@ -18,10 +20,13 @@ KEY_TO_MSG = {
     pygame.K_SPACE : "t"
 }
 
-
+old_time = time.time()
 while True:
     try:
         data_array = serial_client.serial_comm.read_until(b'\n')
+        # new_time = time.time()
+        # print(new_time - old_time)
+        # old_time = new_time
         cloud_point.ingest_frame(data_array)
         window.update_from_cloud_point()
         for event in pygame.event.get():
