@@ -27,7 +27,7 @@ class LidarCloudPoint:
     "ea" : "end angle"
     }
 
-    def __init__(self, receiving_queue : queue.Queue):
+    def __init__(self, receiving_queue : queue.Queue = None):
         self.start_angle = None
         self.nb_value = None
         self.number_of_points = int(360 / LidarCloudPoint.LIDAR_RESOLUTION)
@@ -37,7 +37,7 @@ class LidarCloudPoint:
         self.nb_value = 12
         self.end_angle = None
         self.old_time = time.time()
-        self.receiving_queue = receiving_queue
+        # self.receiving_queue = receiving_queue
         # self.delta_angle = None
         #TODO: implement threading
         # self.start()
