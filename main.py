@@ -43,11 +43,10 @@ while True:
     
                 # quit the program.
                 quit()
-                serial_client.stop()
             if event.type == pygame.KEYDOWN:
                 if event.key in KEY_TO_MSG.keys():
                     print(f'sending key : {KEY_TO_MSG[event.key]}')
-                    serial_client.send_message(KEY_TO_MSG[event.key])
+                    tcp_server.send(KEY_TO_MSG[event.key])
 
     except KeyboardInterrupt:
         pygame.quit()

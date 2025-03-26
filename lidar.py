@@ -84,7 +84,7 @@ class LidarCloudPoint:
         
         if len(frame) != 15:
             return False
-        
+        print(f'frame : {frame}')
         for counter, data in enumerate(frame):
             #print(f'data : {data} | counter : {counter}')
             try:
@@ -133,7 +133,7 @@ class LidarCloudPoint:
         if frame == None:
             return
         frame = frame[:-1] # remove the '\n' at the end of frame
-        data_array = frame.decode(encoding='ascii').split(' ')
+        data_array = frame.split(' ')
         # print(data_array)
         self.pre_formatted_distances = []
         if self.check_frame_integrity_and_format(data_array):
